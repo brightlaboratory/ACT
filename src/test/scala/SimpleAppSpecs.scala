@@ -1,4 +1,5 @@
 
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfter, FlatSpec}
 
@@ -8,6 +9,7 @@ class SimpleAppSpecs extends FlatSpec with BeforeAndAfter {
   private val appName = "example-spark"
 
   private var sc: SparkContext = _
+  private var spark: SparkSession = _
 
   before {
     val conf = new SparkConf()
@@ -15,6 +17,10 @@ class SimpleAppSpecs extends FlatSpec with BeforeAndAfter {
       .setAppName(appName)
 
     sc = new SparkContext(conf)
+    spark = SparkSession.builder.
+      master(master)
+      .appName("spark session example")
+      .getOrCreate()
   }
 
   after {
@@ -24,6 +30,6 @@ class SimpleAppSpecs extends FlatSpec with BeforeAndAfter {
   }
 
   "This test" should "count words" in {
-    SimpleApp.countWords(sc)
+    SurvivalPrediction.createDataframe(spark)
   }
 }

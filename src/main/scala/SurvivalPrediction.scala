@@ -1,7 +1,6 @@
 package scala
 
 import org.apache.spark.ml.classification.{GBTClassifier, RandomForestClassifier}
-import org.apache.spark.ml.clustering.KMeans
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorAssembler}
 import org.apache.spark.sql.functions._
@@ -12,17 +11,35 @@ object SurvivalPrediction {
   def createDataframe(spark: SparkSession) = {
 
     val df = spark.read
-      .option("header", "true") //reading the headers
-      .csv(getClass.getClassLoader.getResource("inp_file1.csv").getPath)
+      .option("header", "false") //reading the headers
+      .csv(getClass.getClassLoader.getResource("train").getPath)
 
-    val someCastedDF = (df.columns.toBuffer).foldLeft(df)((current, c) =>current.withColumn(c, col(c).cast("int")))
+    df.printSchema()
+
+
+    val someCastedDF = (df.columns.toBuffer).foldLeft(df)((current, c)
+    =>current.withColumn(c, col(c).cast("double")))
     someCastedDF.createOrReplaceTempView("DATA")
-    val filteredDF = spark.sql("select * from DATA where Age >0 and PT>=0 and PTT>=0 and Platelets>=0")
-    println(filteredDF.count())
+
+    someCastedDF.take(10).foreach(v => println("ROW: " + v))
+
+    val newNames = Seq("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
+    val renamedDF = someCastedDF.toDF(newNames: _*)
+
+
+//    println(someCastedDF.count())
+//    someCastedDF.printSchema()
+//    sys.exit(0)
+//
+//    val renamedDF = spark.sql("select * from DATA where Age >0 and PT>=0 and PTT>=0 and Platelets>=0")
+    println(renamedDF.count())
+    renamedDF.printSchema()
+//    sys.exit(0)
+
 
     val labelIndexer = new StringIndexer().setInputCol("DOA").setOutputCol("label")
-    val labelIndexerModel = labelIndexer.fit(filteredDF)
-    val labelDf = labelIndexerModel.transform(filteredDF)
+    val labelIndexerModel = labelIndexer.fit(renamedDF)
+    val labelDf = labelIndexerModel.transform(renamedDF)
 
     val assembler = new VectorAssembler().setInputCols(Array("Age", "Gender", "PT", "PTT", "Platelets"))
       .setOutputCol("features")
