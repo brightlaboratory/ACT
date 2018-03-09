@@ -97,12 +97,17 @@ object SimpleApp {
     val fn = spark.sql("select count(*) from DATA where label = 1.0 and prediction = 0.0")
     val count = spark.sql("select count(*) from DATA")
 
-    val accuracy = (tp.first().getLong(0) + tn.first().getLong(0))/count.first().getLong(0)
-    val precision = tp.first().getLong(0)/(tp.first().getLong(0)+ fp.first().getLong(0))
+    val accuracy = (tp.first().getLong(0) + tn.first().getLong(0)).toFloat/count.first().getLong(0).toFloat
+    val precision = tp.first().getLong(0).toFloat / (tp.first().getLong(0) + fp.first().getLong(0)).toFloat
+    val recall = tp.first().getLong(0).toFloat / (tp.first().getLong(0) + fn.first().getLong(0)).toFloat
+    val f1 = 2.0/((1/recall)+(1/precision))
 
     //Column/Row seq: "True Positive" , "False Positive", "False Negative", "True Negative"
     val confMatDF = tp.union(fp).union(fn).union(tn)
-    println(accuracy +"    "+ precision)
+    println("Accuracy : " + accuracy)
+    println("Precision : " + precision)
+    println("Recall : " + recall)
+    println("F1 Score : " + f1)
     println(confMatDF.show())
     //println("True Positive: "+tp.first().getLong(0))
     //print("True Negative: "+tn.first().getLong(0))
