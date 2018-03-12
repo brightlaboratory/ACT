@@ -157,52 +157,67 @@ class DataPrep:
 
 if __name__ == "__main__":
     n = 10000
-    doa_list = [0.15, 0.20, 0.25, 0.30]
-    ptr_list = [5.0, 5.5, 6.0, 6.5]
-    pttr_list = [7.0, 7.5, 8.0, 8.5]
-    plat_list = [4.0, 4.5, 5.0, 5.5]
-    seed_list = {'age': 1, 'gender': 2, 'pt': 3, 'ptt': 4, 'plat': 5, 'doa': 6}
-
-    n_iter_ = len(doa_list) * len(ptr_list) * len(pttr_list) * len(plat_list)
+    no_of_seed_sets = 10 # used to set the distinct number of seeds sets to be used. Default to 1
+    doa_list = [0.20]
+    ptr_list = [4.0]
+    pttr_list = [8.0]
+    plat_list = [5.0]
+    #seed_list = {'age': 10, 'gender': 11, 'pt': 12, 'ptt': 13, 'plat': 14, 'doa': 15}
+    seed_list = {'age': [], 'gender': [], 'pt': [], 'ptt': [], 'plat': [], 'doa': []}
+    j = 1
+    for _ in range(no_of_seed_sets):
+        seed_list['age'].append(j)
+        seed_list['gender'].append(j+1)
+        seed_list['pt'].append(j+2)
+        seed_list['ptt'].append(j+3)
+        seed_list['plat'].append(j+4)
+        seed_list['doa'].append(j+5)
+        j=j+1
+    print(seed_list['age'][0])
+    n_iter_ = len(doa_list) * len(ptr_list) * len(pttr_list) * len(plat_list) * no_of_seed_sets
     print(n_iter_)
     dt1 = str('{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now()))
+    x=0
     for i in doa_list:
         for j in ptr_list:
             for k in pttr_list:
                 for l in plat_list:
-                    dp_obj = DataProperties(n, doa_rate=i, pt_odds_ratio=j, ptt_odds_ratio=k, platelet_odds_ratio=l)
-                    table = DataPrep(n, 7)
-                    table.add_data_to_col(6, dp_obj.dead, 0, seed_list['doa'])
-                    table.add_data_to_col(2, dp_obj.male, 1, seed_list['gender'])
-                    table.add_data_to_col(2, dp_obj.female, 0, seed_list['gender'])
-                    table.add_age_data(col=1, sigma=19, mu=36, sample=n, seed=seed_list['age'])
-                    n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high = dp_obj.get_pt_values()
-                    n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high = dp_obj.get_ptt_values()
-                    n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high = dp_obj.get_platelet_values()
+                    for seed in range(no_of_seed_sets):
+                        print("round: ", seed)
+                        dp_obj = DataProperties(n, doa_rate=i, pt_odds_ratio=j, ptt_odds_ratio=k, platelet_odds_ratio=l)
+                        table = DataPrep(n, 7)
+                        table.add_data_to_col(6, dp_obj.dead, 0, seed_list['doa'][seed])
+                        table.add_data_to_col(2, dp_obj.male, 1, seed_list['gender'][seed])
+                        table.add_data_to_col(2, dp_obj.female, 0, seed_list['gender'][seed])
+                        table.add_age_data(col=1, sigma=19, mu=36, sample=n, seed=seed_list['age'][seed])
+                        n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high = dp_obj.get_pt_values()
+                        n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high = dp_obj.get_ptt_values()
+                        n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high = dp_obj.get_platelet_values()
 
-                    dt = str('{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now()))
-                    filename = '/home/nms/PycharmProjects/ATC/data/' + "oddsratio_src_" + str(i) + "_" + str(j) + "_" \
-                               + str(k) + "_" + str(l) + "_" + dt + ".csv"
-                    d = {'pt': [n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high],
-                         'ptt': [n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high],
-                         'plat': [n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high],
-                         'pt_or': (n_pt_dead_low*n_pt_alive_high)/(n_pt_dead_high*n_pt_alive_low),
-                         'ptt_or': (n_ptt_dead_low * n_ptt_alive_high) / (n_ptt_dead_high * n_ptt_alive_low),
-                         'plat_or': (n_plat_dead_low * n_plat_alive_high) / (n_plat_dead_high * n_plat_alive_low)}
-                    with open('/home/nms/PycharmProjects/ATC/data/oddsratio_src_' + dt1 + '.txt', 'a') as tf:
-                        tf.write(filename)
-                        tf.write(str(d))
-                        # tf.write(str(d['ptt']))
-                        # tf.write(str(d['plat']))
+                        dt = str('{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now()))
+                        '''
+                        filename = '/home/nms/PycharmProjects/ATC/data/' + "oddsratio_src_" + str(i) + "_" + str(j) + "_" \
+                                   + str(k) + "_" + str(l) + "_" + dt + ".csv"
+                        d = {'pt': [n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high],
+                             'ptt': [n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high],
+                             'plat': [n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high],
+                             'pt_or': (n_pt_dead_low*n_pt_alive_high)/(n_pt_dead_high*n_pt_alive_low),
+                             'ptt_or': (n_ptt_dead_low * n_ptt_alive_high) / (n_ptt_dead_high * n_ptt_alive_low),
+                             'plat_or': (n_plat_dead_low * n_plat_alive_high) / (n_plat_dead_high * n_plat_alive_low)}
+                        with open('/home/nms/PycharmProjects/ATC/data/oddsratio_src_' + dt1 + '.txt', 'a') as tf:
+                            tf.write(filename)
+                            tf.write(str(d))
+                            # tf.write(str(d['ptt']))
+                            # tf.write(str(d['plat']))
+                        '''
+                        table.add_data_wrt_doa(3, n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high,seed_list['pt'][seed])
+                        table.add_data_wrt_doa(4, n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high, seed_list['ptt'][seed])
+                        table.add_data_wrt_doa(5, n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high,seed_list['plat'][seed])
 
-                    table.add_data_wrt_doa(3, n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high)
-                    table.add_data_wrt_doa(4, n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high)
-                    table.add_data_wrt_doa(5, n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high)
+                        filename = '/home/nms/PycharmProjects/ATC/data/dataset_{0}{1}{2}{3}{4}{5}_{6}_{7}_{8}_{9}_{10}.csv'.format(
+                            str(seed_list['age'][seed]), str(seed_list['gender'][seed]), str(seed_list['pt'][seed]), str(seed_list['ptt'][seed]),
+                            str(seed_list['plat'][seed]), str(seed_list['doa'][seed]), str(i), str(j), str(k), str(l), dt)
 
-                    filename = '/home/nms/PycharmProjects/ATC/data/dataset_{0}{1}{2}{3}{4}{5}_{6}_{7}_{8}_{9}_{10}.csv'.format(
-                        str(seed_list['age']), str(seed_list['gender']), str(seed_list['pt']), str(seed_list['ptt']),
-                        str(seed_list['plat']), str(seed_list['doa']), str(i), str(j), str(k), str(l), dt)
+                        np.savetxt(filename, table.table, delimiter=",")
 
-                    np.savetxt(filename, table.table, delimiter=",")
-
-    tf.close()
+    #tf.close()
