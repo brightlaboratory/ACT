@@ -1,18 +1,22 @@
 /* SimpleApp.scala */
 
+import java.io.{BufferedWriter, File, FileWriter}
 
-import breeze.linalg.*
-import org.apache.spark.SparkContext
 import org.apache.spark.ml.classification.RandomForestClassifier
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorAssembler}
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions._
+import org.apache.log4j.{Level, Logger}
 
 
 object SimpleApp {
   def createDataframe(spark: SparkSession) = {
 
+    Logger.getLogger("org").setLevel(Level.ERROR)
+    Logger.getLogger("akka").setLevel(Level.ERROR)
     val df = spark.read
       .option("header", "false") //reading the headers
       .csv(getClass.getClassLoader.getResource("train").getPath)
@@ -21,98 +25,113 @@ object SimpleApp {
 
     val someCastedDF = (df.columns.toBuffer).foldLeft(df)((current, c)
     => current.withColumn(c, col(c).cast("double")))
-    someCastedDF.createOrReplaceTempView("DATA")
+    //someCastedDF.createOrReplaceTempView("DATA")
 
     val newNamesTrain = Seq("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
     val renamedDF = someCastedDF.toDF(newNamesTrain: _*)
 
-    println(renamedDF.count())
-    //renamedDF.printSchema()
 
-    val labelIndexer = new StringIndexer().setInputCol("DOA").setOutputCol("label")
-    val labelIndexerModelTrain = labelIndexer.fit(renamedDF)
-    val labelDfTrain = labelIndexerModelTrain.transform(renamedDF)
+    val k = 10000
+    val w = Window.orderBy("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
+    val indexedDF = renamedDF.withColumn("index", row_number().over(w))
+    indexedDF.createOrReplaceTempView("INPUT")
 
-    val assemblerTrain = new VectorAssembler().setInputCols(Array( "Age", "Gender", "PT", "PTT", "Platelets"))
-      .setOutputCol("features")
-    val dfTrain = assemblerTrain.transform(labelDfTrain)
+    var low = 0
+    var high = low + k
+    var counter = 0
+    val arrayLength = (indexedDF.count()/k).toInt
+    var accuracy = new Array[Double](arrayLength)
+    var recall = new Array[Double](arrayLength)
+    var precision = new Array[Double](arrayLength)
+    var f1 = new Array[Double](arrayLength)
 
-    //Reading test dataset
-    val dfTest = spark.read
-      .option("header", "false") //reading the headers
-      .csv(getClass.getClassLoader.getResource("test").getPath)
+    while(counter<arrayLength) {
+      //print(low+ ":::"+ high)
+      var testDF = spark.sql(s"select index, id, Age, Gender, PT, PTT, Platelets, DOA from INPUT where index <= ${high} and index > ${low}")
+      var trainDF = spark.sql(s"select index, id, Age, Gender, PTT, PT, Platelets, DOA from INPUT where index <= ${low} or index > ${high}")
+      println(testDF.first())
+      println(trainDF.first())
+      low = low + k.toInt
+      high = high + k
 
-    //df.printSchema()
+      //renamedDF.printSchema()
 
-    val someCastedTestDF = (dfTest.columns.toBuffer).foldLeft(dfTest)((current, c)
-    => current.withColumn(c, col(c).cast("double")))
-    someCastedDF.createOrReplaceTempView("DATA")
+      //RFC(dfTrain, dfTest_, labelIndexer)
+      // }
 
-    val newNamesTest = Seq("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
-    val renamedTestDF = someCastedTestDF.toDF(newNamesTest: _*)
+      //def RFC(train: DataFrame, test: DataFrame, labelIndexer: StringIndexer): Unit ={
 
-    println(renamedTestDF.count())
-    //renamedTestDF.printSchema()
+      //val labelIndexerModel = labelIndexer.fit(test)
 
-    //val labelIndexer = new StringIndexer().setInputCol("DOA").setOutputCol("label")
-    val labelIndexerModelTest = labelIndexer.fit(renamedTestDF)
-    val labelDfTest = labelIndexerModelTest.transform(renamedTestDF)
+      var labelIndexerTrain = new StringIndexer().setInputCol("DOA").setOutputCol("label")
+      var labelIndexerModelTrain = labelIndexerTrain.fit(trainDF)
+      var labelDfTrain = labelIndexerModelTrain.transform(trainDF)
 
-    val assemblerTest = new VectorAssembler().setInputCols(Array( "Age", "Gender", "PT", "PTT", "Platelets"))
-      .setOutputCol("features")
-    val dfTest_ = assemblerTest.transform(labelDfTest)
+      var assembler = new VectorAssembler().setInputCols(Array( "Age", "Gender", "PT", "PTT", "Platelets"))
+        .setOutputCol("features")
+      var transformedDf = assembler.transform(labelDfTrain)
 
-    //RFC(dfTrain, dfTest_, labelIndexer)
- // }
+      var labelIndexerTest = new StringIndexer().setInputCol("DOA").setOutputCol("label")
+      var labelIndexerModelTest = labelIndexerTest.fit(testDF)
+      var labelDfTest = labelIndexerModelTest.transform(trainDF)
 
-  //def RFC(train: DataFrame, test: DataFrame, labelIndexer: StringIndexer): Unit ={
+      var DfTest = assembler.transform(labelDfTest)
 
-    //val labelIndexerModel = labelIndexer.fit(test)
+      var classifier = new RandomForestClassifier()
+        .setImpurity("gini")
+        .setMaxDepth(4)
+        .setNumTrees(50)
+        .setMaxBins(100)
+        .setFeatureSubsetStrategy("auto")
+        .setSeed(5043)
 
-    val classifier = new RandomForestClassifier()
-    .setImpurity("gini")
-    .setMaxDepth(4)
-    .setNumTrees(50)
-    .setMaxBins(100)
-    .setFeatureSubsetStrategy("auto")
-    .setSeed(5043)
 
-    val model = classifier.fit(dfTrain)
+      var model = classifier.fit(transformedDf)
 
-    println("model.featureImportances: " + model.featureImportances)
+      println("model.featureImportances: " + model.featureImportances)
 
-    val predictions = model.transform(dfTest_)
+      var predictions = model.transform(DfTest)
 
-    val labelConverter = new IndexToString()
-      .setInputCol("prediction")
-      .setOutputCol("originalValue")
-      .setLabels(labelIndexerModelTest.labels)
+      var labelConverter = new IndexToString()
+        .setInputCol("prediction")
+        .setOutputCol("originalValue")
+        .setLabels(labelIndexerModelTest.labels)
 
-    val dfPred = labelConverter.transform(predictions)
-    dfPred.createOrReplaceTempView("DATA")
+      var dfPred = labelConverter.transform(predictions)
+      dfPred.createOrReplaceTempView("DATA")
 
-    val tp = spark.sql("select count(*) from DATA where label = 1.0 and prediction = 1.0")
-    val tn = spark.sql("select count(*) from DATA where label = 0.0 and prediction = 0.0")
-    val fp = spark.sql("select count(*) from DATA where label = 0.0 and prediction = 1.0")
-    val fn = spark.sql("select count(*) from DATA where label = 1.0 and prediction = 0.0")
-    val count = spark.sql("select count(*) from DATA")
+      var tp = spark.sql("select count(*) from DATA where label = 1.0 and prediction = 1.0")
+      var tn = spark.sql("select count(*) from DATA where label = 0.0 and prediction = 0.0")
+      var fp = spark.sql("select count(*) from DATA where label = 0.0 and prediction = 1.0")
+      var fn = spark.sql("select count(*) from DATA where label = 1.0 and prediction = 0.0")
+      var count = spark.sql("select count(*) from DATA")
 
-    val accuracy = (tp.first().getLong(0) + tn.first().getLong(0)).toFloat/count.first().getLong(0).toFloat
-    val precision = tp.first().getLong(0).toFloat / (tp.first().getLong(0) + fp.first().getLong(0)).toFloat
-    val recall = tp.first().getLong(0).toFloat / (tp.first().getLong(0) + fn.first().getLong(0)).toFloat
-    val f1 = 2.0/((1/recall)+(1/precision))
-
-    //Column/Row seq: "True Positive" , "False Positive", "False Negative", "True Negative"
-    val confMatDF = tp.union(fp).union(fn).union(tn)
-    println("Accuracy : " + accuracy)
-    println("Precision : " + precision)
-    println("Recall : " + recall)
-    println("F1 Score : " + f1)
-    println(confMatDF.show())
-    //println("True Positive: "+tp.first().getLong(0))
-    //print("True Negative: "+tn.first().getLong(0))
-    //println("False Positive: "+fp.first().getLong(0))
-    //print("False Negative: "+fn.first().getLong(0))
+      accuracy(counter) = (tp.first().getLong(0) + tn.first().getLong(0)).toFloat / count.first().getLong(0).toFloat
+      precision(counter) = tp.first().getLong(0).toFloat / (tp.first().getLong(0) + fp.first().getLong(0)).toFloat
+      recall(counter) = tp.first().getLong(0).toFloat / (tp.first().getLong(0) + fn.first().getLong(0)).toFloat
+      f1(counter) = 2.0 / ((1 / recall(counter)) + (1 / precision(counter)))
+      counter = counter + 1
+      //Column/Row seq: "True Positive" , "False Positive", "False Negative", "True Negative"
+      //var confMatDF = tp.union(fp).union(fn).union(tn)
+      //println("Accuracy : " + accuracy)
+      //println("Precision : " + precision)
+      //println("Recall : " + recall)
+      //println("F1 Score : " + f1)
+      //println(confMatDF.show())
+    }
+    val metricsName = "num,accuracy,precision,recall,f1\n"
+    var i = 0
+    val file = new File("Metrics.csv")
+    val bw = new BufferedWriter(new FileWriter(file))
+    bw.write(metricsName)
+    println(metricsName)
+    while (i < arrayLength){
+      var str = i.toString()+","+accuracy(i).toString()+","+precision(i).toString()+","+recall(i).toString()+","+f1(i).toString()+"\n"
+      bw.write(str)
+      println(str)
+      i = i+1
+    }
+    bw.close()
   }
 
 }
