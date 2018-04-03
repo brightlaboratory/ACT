@@ -1,34 +1,37 @@
-import random, math, datetime
+import random, math, datetime, os
 import numpy as np
 
 
 class DataProperties:
 
-    def __init__(self, cohort, pt_odds_ratio, ptt_odds_ratio, platelet_odds_ratio, doa_rate=0.15, seed=1):
-        self.cohort = cohort
+    def __init__(self, cohort, gender_odds_ratio, pt_odds_ratio, ptt_odds_ratio, platelet_odds_ratio, doa_rate=0.15,
+                 male_ratio=0.75, pt_abnormal=0.27, ptt_abnormal=0.08, plat_abnormal=0.04):
+
+        self.gender_odds_ratio = gender_odds_ratio
         self.pt_odds_ratio = pt_odds_ratio
         self.ptt_odds_ratio = ptt_odds_ratio
         self.platelet_odds_ratio = platelet_odds_ratio
         self.doa_rate = doa_rate
-        self.seed = seed
-        self.dead = math.floor(cohort * doa_rate)
-        self.male = math.floor(cohort * 0.75)
+        self.male = math.floor(cohort*male_ratio)
         self.female = cohort - self.male
+        self.dead = math.ceil(cohort * doa_rate)
+        self.gender_dead = self.dead
         self.pt_dead = self.dead
         self.ptt_dead = self.dead
         self.platelet_dead = self.dead
         # self.pt_dead = math.floor(cohort * 0.099)
         # self.ptt_dead = math.floor(cohort*0.103)
         # self.platelet_dead = math.floor(cohort*0.09)
+        self.gender_alive = cohort - self.gender_dead
         self.pt_alive = cohort - self.pt_dead
         self.ptt_alive = cohort - self.ptt_dead
         self.platelet_alive = cohort - self.platelet_dead
-        self.pt_high = math.floor(cohort * 0.723)
-        self.ptt_high = math.floor(cohort * 0.921)
-        self.platelet_high = math.floor(cohort * 0.966)
-        self.pt_low = math.floor(cohort * 0.277)
-        self.ptt_low = math.floor(cohort * 0.079)
-        self.platelet_low = math.floor(cohort * 0.034)
+        self.pt_low = math.ceil(cohort * pt_abnormal)
+        self.ptt_low = math.ceil(cohort * ptt_abnormal)
+        self.platelet_low = math.ceil(cohort * plat_abnormal)
+        self.pt_high = cohort - self.pt_low
+        self.ptt_high = cohort - self.ptt_low
+        self.platelet_high = cohort - self.platelet_low
 
     @staticmethod
     def f(a, b, c):
@@ -37,19 +40,36 @@ class DataProperties:
             exit("Complex root detected: ")
         root1 = (-b + math.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
         root2 = (-b - math.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
-        return root1, root2
+        if root1 > 0 and root2 > 0:
+            s = math.ceil(min(root1, root2))
+        elif root1 <= 0:
+            s = root2
+        else:
+            s = root1
+
+        return s
+
+    def get_gender_values(self):
+        p = self.gender_odds_ratio - 1
+        q = self.female - self.gender_alive - self.gender_odds_ratio * self.female - self.gender_odds_ratio * self.gender_dead
+        r = self.gender_odds_ratio * self.female * self.gender_dead
+
+        gender_dead_female = DataProperties.f(p, q, r)
+        gender_dead_male = self.gender_dead - gender_dead_female
+        gender_alive_male = self.male - gender_dead_male
+        gender_alive_female = self.female - gender_dead_female
+
+        return gender_dead_female, gender_dead_male, gender_alive_female, gender_alive_male
 
     def get_pt_values(self):
         p = self.pt_odds_ratio - 1
         q = self.pt_low - self.pt_alive - self.pt_odds_ratio * self.pt_low - self.pt_odds_ratio * self.pt_dead
         r = self.pt_odds_ratio * self.pt_low * self.pt_dead
-        s1, s2 = DataProperties.f(p, q, r)
-        # print(s1, s2)
-        s = math.ceil(min(s1, s2))
-        pt_dead_low = s
+
+        pt_dead_low = DataProperties.f(p, q, r)
         pt_dead_high = self.pt_dead - pt_dead_low
         pt_alive_high = self.pt_high - pt_dead_high
-        pt_alive_low = self.pt_low - s
+        pt_alive_low = self.pt_low - pt_dead_low
 
         return pt_dead_low, pt_dead_high, pt_alive_low, pt_alive_high
 
@@ -57,13 +77,11 @@ class DataProperties:
         p = self.ptt_odds_ratio - 1
         q = self.ptt_low - self.ptt_alive - self.ptt_odds_ratio * self.ptt_low - self.ptt_odds_ratio * self.ptt_dead
         r = self.ptt_odds_ratio * self.ptt_low * self.ptt_dead
-        s1, s2 = DataProperties.f(p, q, r)
-        # print(s1, s2)
-        s = math.ceil(min(s1, s2))
-        ptt_dead_low = s
+
+        ptt_dead_low = DataProperties.f(p, q, r)
         ptt_dead_high = self.ptt_dead - ptt_dead_low
         ptt_alive_high = self.ptt_high - ptt_dead_high
-        ptt_alive_low = self.ptt_low - s
+        ptt_alive_low = self.ptt_low - ptt_dead_low
 
         return ptt_dead_low, ptt_dead_high, ptt_alive_low, ptt_alive_high
 
@@ -71,16 +89,14 @@ class DataProperties:
         p = self.platelet_odds_ratio - 1
         q = self.platelet_low - self.platelet_alive - self.platelet_odds_ratio * self.platelet_low - self.platelet_odds_ratio * self.platelet_dead
         r = self.platelet_odds_ratio * self.platelet_low * self.platelet_dead
-        s1, s2 = DataProperties.f(p, q, r)
-        # print(s1, s2)
-        # print(self.platelet_dead, self.platelet_alive)
-        s = math.ceil(min(s1, s2))
-        platelet_dead_low = s
+
+        platelet_dead_low = DataProperties.f(p, q, r)
         platelet_dead_high = self.platelet_dead - platelet_dead_low
         platelet_alive_high = self.platelet_high - platelet_dead_high
-        platelet_alive_low = self.platelet_low - s
+        platelet_alive_low = self.platelet_low - platelet_dead_low
 
         return platelet_dead_low, platelet_dead_high, platelet_alive_low, platelet_alive_high
+
 
 
 class DataPrep:
@@ -158,11 +174,15 @@ class DataPrep:
 if __name__ == "__main__":
     n = 10000
     no_of_seed_sets = 10 # used to set the distinct number of seeds sets to be used. Default to 1
-    doa_list = [0.20]
-    ptr_list = [4.0]
-    pttr_list = [8.0]
-    plat_list = [5.0]
-    #seed_list = {'age': 10, 'gender': 11, 'pt': 12, 'ptt': 13, 'plat': 14, 'doa': 15}
+    doa = 0.5
+    gender_OR = 10
+    gender_ratio = 0.5
+    pt_OR = 6
+    pt_abn = 0.4
+    ptt_OR = 10
+    ptt_abn = 0.3
+    plat_OR = 10
+    plat_abn = 0.3
     seed_list = {'age': [], 'gender': [], 'pt': [], 'ptt': [], 'plat': [], 'doa': []}
     j = 1
     for _ in range(no_of_seed_sets):
@@ -170,54 +190,52 @@ if __name__ == "__main__":
         seed_list['gender'].append(j+1)
         seed_list['pt'].append(j+2)
         seed_list['ptt'].append(j+3)
-        seed_list['plat'].append(j+4)
+        seed_list[  'plat'].append(j+4)
         seed_list['doa'].append(j+5)
-        j=j+1
-    print(seed_list['age'][0])
-    n_iter_ = len(doa_list) * len(ptr_list) * len(pttr_list) * len(plat_list) * no_of_seed_sets
-    print(n_iter_)
+        j = j+1
+
+    dp_obj = DataProperties(n, gender_OR, pt_OR, ptt_OR, plat_OR, doa, gender_ratio, pt_abn, ptt_abn, plat_abn)
     dt1 = str('{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now()))
     x=0
-    for i in doa_list:
-        for j in ptr_list:
-            for k in pttr_list:
-                for l in plat_list:
-                    for seed in range(no_of_seed_sets):
-                        print("round: ", seed)
-                        dp_obj = DataProperties(n, doa_rate=i, pt_odds_ratio=j, ptt_odds_ratio=k, platelet_odds_ratio=l)
-                        table = DataPrep(n, 7)
-                        table.add_data_to_col(6, dp_obj.dead, 0, seed_list['doa'][seed])
-                        table.add_data_to_col(2, dp_obj.male, 1, seed_list['gender'][seed])
-                        table.add_data_to_col(2, dp_obj.female, 0, seed_list['gender'][seed])
-                        table.add_age_data(col=1, sigma=19, mu=36, sample=n, seed=seed_list['age'][seed])
-                        n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high = dp_obj.get_pt_values()
-                        n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high = dp_obj.get_ptt_values()
-                        n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high = dp_obj.get_platelet_values()
+    for seed in range(no_of_seed_sets):
+        print("round: ", seed+1)
+        table = DataPrep(n, 7)
+        table.add_data_to_col(6, dp_obj.dead, 0, seed_list['doa'][seed])
+        # table.add_data_to_col(2, dp_obj.male, 1, seed_list['gender'][seed])
+        # table.add_data_to_col(2, dp_obj.female, 0, seed_list['gender'][seed])
+        table.add_age_data(col=1, sigma=19, mu=36, sample=n, seed=seed_list['age'][seed])
 
-                        dt = str('{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now()))
-                        '''
-                        filename = '/home/nms/PycharmProjects/ATC/data/' + "oddsratio_src_" + str(i) + "_" + str(j) + "_" \
-                                   + str(k) + "_" + str(l) + "_" + dt + ".csv"
-                        d = {'pt': [n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high],
-                             'ptt': [n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high],
-                             'plat': [n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high],
-                             'pt_or': (n_pt_dead_low*n_pt_alive_high)/(n_pt_dead_high*n_pt_alive_low),
-                             'ptt_or': (n_ptt_dead_low * n_ptt_alive_high) / (n_ptt_dead_high * n_ptt_alive_low),
-                             'plat_or': (n_plat_dead_low * n_plat_alive_high) / (n_plat_dead_high * n_plat_alive_low)}
-                        with open('/home/nms/PycharmProjects/ATC/data/oddsratio_src_' + dt1 + '.txt', 'a') as tf:
-                            tf.write(filename)
-                            tf.write(str(d))
-                            # tf.write(str(d['ptt']))
-                            # tf.write(str(d['plat']))
-                        '''
-                        table.add_data_wrt_doa(3, n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high,seed_list['pt'][seed])
-                        table.add_data_wrt_doa(4, n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high, seed_list['ptt'][seed])
-                        table.add_data_wrt_doa(5, n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high,seed_list['plat'][seed])
+        n_gen_dead_f, n_gen_dead_m, n_gen_alive_f, n_gen_alive_m = dp_obj.get_gender_values()
+        n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high = dp_obj.get_pt_values()
+        n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high = dp_obj.get_ptt_values()
+        n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high = dp_obj.get_platelet_values()
 
-                        filename = '/home/nms/PycharmProjects/ATC/data/dataset_{0}{1}{2}{3}{4}{5}_{6}_{7}_{8}_{9}_{10}.csv'.format(
-                            str(seed_list['age'][seed]), str(seed_list['gender'][seed]), str(seed_list['pt'][seed]), str(seed_list['ptt'][seed]),
-                            str(seed_list['plat'][seed]), str(seed_list['doa'][seed]), str(i), str(j), str(k), str(l), dt)
+        dt = str('{:%Y%m%d_%H%M%S}'.format(datetime.datetime.now()))
+        '''
+        filename = '/home/nms/PycharmProjects/ATC/data/' + "oddsratio_src_" + str(i) + "_" + str(j) + "_" \
+                   + str(k) + "_" + str(l) + "_" + dt + ".csv"
+        d = {'pt': [n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high],
+             'ptt': [n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high],
+             'plat': [n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high],
+             'pt_or': (n_pt_dead_low*n_pt_alive_high)/(n_pt_dead_high*n_pt_alive_low),
+             'ptt_or': (n_ptt_dead_low * n_ptt_alive_high) / (n_ptt_dead_high * n_ptt_alive_low),
+             'plat_or': (n_plat_dead_low * n_plat_alive_high) / (n_plat_dead_high * n_plat_alive_low)}
+        with open('/home/nms/PycharmProjects/ATC/data/oddsratio_src_' + dt1 + '.txt', 'a') as tf:
+            tf.write(filename)
+            tf.write(str(d))
+            # tf.write(str(d['ptt']))
+            # tf.write(str(d['plat']))
+        '''
+        table.add_data_wrt_doa(2, n_gen_dead_f, n_gen_dead_m, n_gen_alive_f, n_gen_alive_m, seed_list['gender'][seed])
+        table.add_data_wrt_doa(3, n_pt_dead_low, n_pt_dead_high, n_pt_alive_low, n_pt_alive_high, seed_list['pt'][seed])
+        table.add_data_wrt_doa(4, n_ptt_dead_low, n_ptt_dead_high, n_ptt_alive_low, n_ptt_alive_high,
+                               seed_list['ptt'][seed])
+        table.add_data_wrt_doa(5, n_plat_dead_low, n_plat_dead_high, n_plat_alive_low, n_plat_alive_high,
+                               seed_list['plat'][seed])
 
-                        np.savetxt(filename, table.table, delimiter=",")
+        filename = '/home/nms/PycharmProjects/ATC/data/dataset_{0}{1}{2}{3}{4}{5}_{6}_{7}_{8}_{9}_{10}.csv'.format(
+            str(seed_list['age'][seed]), str(seed_list['gender'][seed]), str(seed_list['pt'][seed]),
+            str(seed_list['ptt'][seed]), str(seed_list['plat'][seed]), str(seed_list['doa'][seed]), str(gender_OR),
+            str(pt_OR), str(ptt_OR), str(plat_OR), dt)
 
-    #tf.close()
+        np.savetxt(filename, table.table, delimiter=",")
