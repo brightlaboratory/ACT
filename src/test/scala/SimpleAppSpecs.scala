@@ -29,7 +29,7 @@ class SimpleAppSpecs extends FlatSpec with BeforeAndAfter {
     }
   }
 
-  "This test" should "count words" in {
-    SurvivalPrediction.createDataframe(spark)
+  "This test" should "generate metrics" in {
+    GradientBoosting.createDataframe(spark)
   }
 }

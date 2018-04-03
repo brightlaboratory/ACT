@@ -1,8 +1,7 @@
-/* SimpleApp.scala */
 
 import java.io.{BufferedWriter, File, FileWriter}
 
-import org.apache.spark.ml.classification.RandomForestClassifier
+import org.apache.spark.ml.classification.{GBTClassificationModel, GBTClassifier}
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorAssembler}
 import org.apache.spark.sql.expressions.Window
@@ -11,8 +10,7 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.functions._
 import org.apache.log4j.{Level, Logger}
 
-
-object SimpleApp {
+object GradientBoosting {
   def createDataframe(spark: SparkSession) = {
 
     Logger.getLogger("org").setLevel(Level.ERROR)
@@ -39,35 +37,26 @@ object SimpleApp {
     var low = 0
     var high = low + k
     var counter = 0
-    val arrayLength = (indexedDF.count()/k).toInt
+    val arrayLength = (indexedDF.count() / k).toInt
     var accuracy = new Array[Double](arrayLength)
     var recall = new Array[Double](arrayLength)
     var precision = new Array[Double](arrayLength)
     var f1 = new Array[Double](arrayLength)
 
-    while(counter<arrayLength) {
+    while (counter < arrayLength) {
       //print(low+ ":::"+ high)
       var testDF = spark.sql(s"select index, id, Age, Gender, PT, PTT, Platelets, DOA from INPUT where index <= ${high} and index > ${low}")
       var trainDF = spark.sql(s"select index, id, Age, Gender, PTT, PT, Platelets, DOA from INPUT where index <= ${low} or index > ${high}")
       //println(testDF.first())
       //println(trainDF.first())
       low = low + k.toInt
+
       high = high + k
-
-      //renamedDF.printSchema()
-
-      //RFC(dfTrain, dfTest_, labelIndexer)
-      // }
-
-      //def RFC(train: DataFrame, test: DataFrame, labelIndexer: StringIndexer): Unit ={
-
-      //val labelIndexerModel = labelIndexer.fit(test)
-
       var labelIndexerTrain = new StringIndexer().setInputCol("DOA").setOutputCol("label")
       var labelIndexerModelTrain = labelIndexerTrain.fit(trainDF)
       var labelDfTrain = labelIndexerModelTrain.transform(trainDF)
 
-      var assembler = new VectorAssembler().setInputCols(Array( "Age", "Gender", "PT", "PTT", "Platelets"))
+      var assembler = new VectorAssembler().setInputCols(Array("Age", "Gender", "PT", "PTT", "Platelets"))
         .setOutputCol("features")
       var transformedDf = assembler.transform(labelDfTrain)
 
@@ -77,14 +66,12 @@ object SimpleApp {
 
       var DfTest = assembler.transform(labelDfTest)
 
-      var classifier = new RandomForestClassifier()
-        .setImpurity("gini")
-        .setMaxDepth(30)
-        .setNumTrees(50)
-        .setMaxBins(100)
-        .setFeatureSubsetStrategy("auto")
+      var classifier = new GBTClassifier()
+        .setLabelCol("label")
+        .setFeaturesCol("features")
+        .setMaxIter(100)
         .setSeed(5043)
-
+        .setMaxDepth(8)
 
       var model = classifier.fit(transformedDf)
 
@@ -111,13 +98,6 @@ object SimpleApp {
       recall(counter) = tp.first().getLong(0).toFloat / (tp.first().getLong(0) + fn.first().getLong(0)).toFloat
       f1(counter) = 2.0 / ((1 / recall(counter)) + (1 / precision(counter)))
       counter = counter + 1
-      //Column/Row seq: "True Positive" , "False Positive", "False Negative", "True Negative"
-      //var confMatDF = tp.union(fp).union(fn).union(tn)
-      //println("Accuracy : " + accuracy)
-      //println("Precision : " + precision)
-      //println("Recall : " + recall)
-      //println("F1 Score : " + f1)
-      //println(confMatDF.show())
     }
     val metricsName = "num,accuracy,precision,recall,f1\n"
     var i = 0
@@ -125,13 +105,12 @@ object SimpleApp {
     val bw = new BufferedWriter(new FileWriter(file))
     bw.write(metricsName)
     println(metricsName)
-    while (i < arrayLength){
-      var str = i.toString()+","+accuracy(i).toString()+","+precision(i).toString()+","+recall(i).toString()+","+f1(i).toString()+"\n"
+    while (i < arrayLength) {
+      var str = i.toString() + "," + accuracy(i).toString() + "," + precision(i).toString() + "," + recall(i).toString() + "," + f1(i).toString() + "\n"
       bw.write(str)
       println(str)
-      i = i+1
+      i = i + 1
     }
     bw.close()
   }
-
 }
