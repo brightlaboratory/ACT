@@ -49,19 +49,10 @@ object SimpleApp {
       //print(low+ ":::"+ high)
       var testDF = spark.sql(s"select index, id, Age, Gender, PT, PTT, Platelets, DOA from INPUT where index <= ${high} and index > ${low}")
       var trainDF = spark.sql(s"select index, id, Age, Gender, PTT, PT, Platelets, DOA from INPUT where index <= ${low} or index > ${high}")
-      //println(testDF.first())
-      //println(trainDF.first())
+      trainDF = createBalancedDF(spark, trainDF, counter)
       low = low + k.toInt
       high = high + k
 
-      //renamedDF.printSchema()
-
-      //RFC(dfTrain, dfTest_, labelIndexer)
-      // }
-
-      //def RFC(train: DataFrame, test: DataFrame, labelIndexer: StringIndexer): Unit ={
-
-      //val labelIndexerModel = labelIndexer.fit(test)
 
       var labelIndexerTrain = new StringIndexer().setInputCol("DOA").setOutputCol("label")
       var labelIndexerModelTrain = labelIndexerTrain.fit(trainDF)
@@ -79,7 +70,7 @@ object SimpleApp {
 
       var classifier = new RandomForestClassifier()
         .setImpurity("gini")
-        .setMaxDepth(30)
+        .setMaxDepth(8)
         .setNumTrees(50)
         .setMaxBins(100)
         .setFeatureSubsetStrategy("auto")
@@ -134,4 +125,19 @@ object SimpleApp {
     bw.close()
   }
 
+  def createBalancedDF(spark: SparkSession, df: DataFrame, c: Int): DataFrame ={
+    df.createOrReplaceTempView("train")
+    var class_0_count = spark.sql(s"select * from train where DOA = 0").count()
+    var class_1_count = spark.sql(s"select * from train where DOA = 1").count()
+    var classRatio = 0.1 //class_0_count.toFloat/class_1_count.toFloat
+    print ("ClassRatio: "+ classRatio + "\n")
+    var ratio = classRatio + (0.1*c).toFloat
+    var class_0_train = spark.sql(s"select * from train where DOA = 0")
+    var class_1_train = spark.sql(s"select * from train where DOA = 1").sample(true, ratio, seed = c)//.limit(class_0_count.toInt)
+    println("Sampling ratio: "+ ratio)
+    println ("class 0: "+ class_0_count)
+    println("class 1: "+ class_1_train.count())
+    var sampledDF = class_0_train.unionAll(class_1_train)
+    return (sampledDF)
+  }
 }

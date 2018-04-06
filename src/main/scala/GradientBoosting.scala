@@ -101,7 +101,7 @@ object GradientBoosting {
     }
     val metricsName = "num,accuracy,precision,recall,f1\n"
     var i = 0
-    val file = new File("Metrics.csv")
+    val file = new File("Metrics_GBTC.csv")
     val bw = new BufferedWriter(new FileWriter(file))
     bw.write(metricsName)
     println(metricsName)
