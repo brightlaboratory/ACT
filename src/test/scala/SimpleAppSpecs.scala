@@ -30,7 +30,8 @@ class SimpleAppSpecs extends FlatSpec with BeforeAndAfter {
   }
 
   "This test" should "generate metrics" in {
-    SimpleApp.createDataframe(spark)
+    //SimpleApp.createDataframe(spark)
     //GradientBoosting.createDataframe(spark)
+    FeatureStats.createDataframe(spark)
   }
 }

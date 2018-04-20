@@ -25,12 +25,12 @@ object GradientBoosting {
     => current.withColumn(c, col(c).cast("double")))
     //someCastedDF.createOrReplaceTempView("DATA")
 
-    val newNamesTrain = Seq("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
+    val newNamesTrain = Seq("id", "Age", "Gender", "PT", "PTT", "Platelets","HF", "DOA")
     val renamedDF = someCastedDF.toDF(newNamesTrain: _*)
 
 
     val k = 10000
-    val w = Window.orderBy("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
+    val w = Window.orderBy("id", "Age", "Gender", "PT", "PTT", "Platelets", "HF", "DOA")
     val indexedDF = renamedDF.withColumn("index", row_number().over(w))
     indexedDF.createOrReplaceTempView("INPUT")
 
@@ -45,8 +45,8 @@ object GradientBoosting {
 
     while (counter < arrayLength) {
       //print(low+ ":::"+ high)
-      var testDF = spark.sql(s"select index, id, Age, Gender, PT, PTT, Platelets, DOA from INPUT where index <= ${high} and index > ${low}")
-      var trainDF = spark.sql(s"select index, id, Age, Gender, PTT, PT, Platelets, DOA from INPUT where index <= ${low} or index > ${high}")
+      var testDF = spark.sql(s"select index, id, Age, Gender, PT, PTT, Platelets, HF, DOA from INPUT where index <= ${high} and index > ${low}")
+      var trainDF = spark.sql(s"select index, id, Age, Gender, PTT, PT, Platelets, HF, DOA from INPUT where index <= ${low} or index > ${high}")
       //println(testDF.first())
       //println(trainDF.first())
       low = low + k.toInt
@@ -56,7 +56,7 @@ object GradientBoosting {
       var labelIndexerModelTrain = labelIndexerTrain.fit(trainDF)
       var labelDfTrain = labelIndexerModelTrain.transform(trainDF)
 
-      var assembler = new VectorAssembler().setInputCols(Array("Age", "Gender", "PT", "PTT", "Platelets"))
+      var assembler = new VectorAssembler().setInputCols(Array("Age", "Gender", "PT", "PTT", "Platelets", "HF"))
         .setOutputCol("features")
       var transformedDf = assembler.transform(labelDfTrain)
 

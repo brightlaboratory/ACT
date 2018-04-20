@@ -27,11 +27,13 @@ object SimpleApp {
     => current.withColumn(c, col(c).cast("double")))
     //someCastedDF.createOrReplaceTempView("DATA")
 
+    //val newNamesTrain = Seq("id", "Age", "Gender", "PT", "PTT", "Platelets", "Hyperfibrinolysis", "DOA")
     val newNamesTrain = Seq("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
     val renamedDF = someCastedDF.toDF(newNamesTrain: _*)
 
 
     val k = 10000
+    //val w = Window.orderBy("id", "Age", "Gender", "PT", "PTT", "Platelets", "Hyperfibrinolysis", "DOA")
     val w = Window.orderBy("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
     val indexedDF = renamedDF.withColumn("index", row_number().over(w))
     indexedDF.createOrReplaceTempView("INPUT")
@@ -47,9 +49,11 @@ object SimpleApp {
 
     while(counter<arrayLength) {
       //print(low+ ":::"+ high)
+      //var testDF = spark.sql(s"select index, id, Age, Gender, PT, PTT, Platelets, Hyperfibrinolysis, DOA from INPUT where index <= ${high} and index > ${low}")
+      //var trainDF = spark.sql(s"select index, id, Age, Gender, PTT, PT, Platelets, Hyperfibrinolysis, DOA from INPUT where index <= ${low} or index > ${high}")
       var testDF = spark.sql(s"select index, id, Age, Gender, PT, PTT, Platelets, DOA from INPUT where index <= ${high} and index > ${low}")
       var trainDF = spark.sql(s"select index, id, Age, Gender, PTT, PT, Platelets, DOA from INPUT where index <= ${low} or index > ${high}")
-      trainDF = createBalancedDF(spark, trainDF, counter)
+      //trainDF = createBalancedDF(spark, trainDF, counter)
       low = low + k.toInt
       high = high + k
 
@@ -58,6 +62,7 @@ object SimpleApp {
       var labelIndexerModelTrain = labelIndexerTrain.fit(trainDF)
       var labelDfTrain = labelIndexerModelTrain.transform(trainDF)
 
+      //var assembler = new VectorAssembler().setInputCols(Array( "Age", "Gender", "PT", "PTT", "Platelets", "Hyperfibrinolysis"))
       var assembler = new VectorAssembler().setInputCols(Array( "Age", "Gender", "PT", "PTT", "Platelets"))
         .setOutputCol("features")
       var transformedDf = assembler.transform(labelDfTrain)
