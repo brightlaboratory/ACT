@@ -40,7 +40,7 @@ print("Threshold alive_normal dead_abn dead_normal alive_abn ")
 for i in range(block, n, block):
     alive_normal = sum(dataset[:i, 1])
     alive_abn = total_alive - alive_normal
-    dead_normal = doa_rate[j]*block
+    dead_normal = i - alive_normal
     dead_abn = total_dead - dead_normal
     print(i, alive_normal,dead_abn, dead_normal, alive_abn)
     oddsratio[j] = round((alive_normal*dead_abn)/(dead_normal*alive_abn), 2)
