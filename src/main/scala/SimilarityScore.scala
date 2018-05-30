@@ -1,8 +1,10 @@
 import FeatureStats.getClass
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import java.io.File
+
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.functions.array
 
 object SimilarityScore {
 
@@ -57,6 +59,16 @@ object SimilarityScore {
     => current.withColumn(c, col(c).cast("double")))
   }
 
+
+  def rowWiseDistUDF = udf((row1: Row, row2: Row) => {
+    var sum:Double = 0
+    for (i <- 0 to (row1.size - 1)) {
+      sum += Math.abs(row1.getDouble(i) - row2.getDouble(i))
+    }
+
+    sum / row1.size
+  })
+
   def computeAverageDistance(df1: DataFrame, df2: DataFrame): Double = {
 
     println("df1.count(): " + df1.count())
@@ -64,17 +76,40 @@ object SimilarityScore {
 
     val (df1Normalized, df2Normalized) = normalizeAgeColumn(df1, df2)
 
-    val df1Mod = df1Normalized.withColumn("paired", lit(false))
-    val df2Mod = df2Normalized.withColumn("paired", lit(false))
+    val df1Mod = addSuffixToColumnNames(df1Normalized, "df1")
+    val df2Mod = addSuffixToColumnNames(df2Normalized, "df2")
 
     df1Mod.take(1).foreach(row => println("ROW: " + row))
     df2Mod.take(1).foreach(row => println("ROW: " + row))
+
+    val crossJoinDf = df1Mod.crossJoin(df2Mod)
+    crossJoinDf.printSchema()
+    crossJoinDf.take(1).foreach(row => println("row: " + row))
+
+    val df1Names = crossJoinDf.columns.filter(_.endsWith("df1")).map(col)
+//    val df1Columns = array(df1Names.head, df1Names.tail:_*)
+    val df2Names = crossJoinDf.columns.filter(_.endsWith("df2")).map(col)
+//    val df2Columns = array(df2Names.head, df2Names.tail:_*)
+
+//    crossJoinDf.select(df1Names).take(1).foreach(v => println("df1: " + v))
+
+    crossJoinDf.withColumn("distance", rowWiseDistUDF(struct(df1Names: _*),
+      struct
+      (df2Names: _*)))
+      .take(1)
+      .foreach(v =>
+        println("df1: " + v))
+//    crossJoinDf.withColumn("distance", rowWiseDistUDF(df1Names, df2Names))
 
     //    df1Mod.map(
 //      row1 =>
 //    )
 
     0.0
+  }
+
+  def addSuffixToColumnNames(df: DataFrame, suffix: String) = {
+    df.toDF(df.columns.map(str => str + "_" + suffix): _*)
   }
 
   def normalizeAgeColumn(df1: DataFrame, df2: DataFrame) = {
