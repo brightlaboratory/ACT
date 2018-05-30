@@ -1,10 +1,8 @@
-import FeatureStats.getClass
-import org.apache.log4j.{Level, Logger}
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import java.io.File
 
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.functions.array
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 
 object SimilarityScore {
 
@@ -87,11 +85,7 @@ object SimilarityScore {
     crossJoinDf.take(1).foreach(row => println("row: " + row))
 
     val df1Names = crossJoinDf.columns.filter(_.endsWith("df1")).map(col)
-//    val df1Columns = array(df1Names.head, df1Names.tail:_*)
     val df2Names = crossJoinDf.columns.filter(_.endsWith("df2")).map(col)
-//    val df2Columns = array(df2Names.head, df2Names.tail:_*)
-
-//    crossJoinDf.select(df1Names).take(1).foreach(v => println("df1: " + v))
 
     crossJoinDf.withColumn("distance", rowWiseDistUDF(struct(df1Names: _*),
       struct
@@ -99,11 +93,8 @@ object SimilarityScore {
       .take(1)
       .foreach(v =>
         println("df1: " + v))
-//    crossJoinDf.withColumn("distance", rowWiseDistUDF(df1Names, df2Names))
 
-    //    df1Mod.map(
-//      row1 =>
-//    )
+    // Now we have to match rows of df1 with rows of df2
 
     0.0
   }
