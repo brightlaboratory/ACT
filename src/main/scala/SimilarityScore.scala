@@ -30,6 +30,8 @@ object SimilarityScore {
     files.foreach(file => println("FILE: " + file))
 
     if (files.size >= 2) {
+      println("files.head: " + files.head)
+      println("files(1): " + files(1))
       val df1 = spark.read
         .option("header", "false") //reading the headers
         .csv(files.head.toString)
