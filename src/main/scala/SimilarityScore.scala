@@ -60,14 +60,18 @@ object SimilarityScore {
 
   def rowWiseDistUDF = udf((row1: Row, row2: Row) => {
     var sum:Double = 0
-    for (i <- 0 to (row1.size - 1)) {
+
+    // We will exclude id column at index 0
+    for (i <- 1 to (row1.size - 1)) {
       sum += Math.abs(row1.getDouble(i) - row2.getDouble(i))
     }
 
-    sum / row1.size
+    sum / (row1.size - 1)
   })
 
   def computeAverageDistance(df1: DataFrame, df2: DataFrame): Double = {
+
+    import df1.sparkSession.implicits._
 
     println("df1.count(): " + df1.count())
     println("df2.count(): " + df2.count())
@@ -87,14 +91,32 @@ object SimilarityScore {
     val df1Names = crossJoinDf.columns.filter(_.endsWith("df1")).map(col)
     val df2Names = crossJoinDf.columns.filter(_.endsWith("df2")).map(col)
 
-    crossJoinDf.withColumn("distance", rowWiseDistUDF(struct(df1Names: _*),
+    val crossJoinDfSimilarity = crossJoinDf.withColumn("distance",
+      rowWiseDistUDF(struct(df1Names: _*),
       struct
       (df2Names: _*)))
-      .take(1)
-      .foreach(v =>
-        println("df1: " + v))
 
+    crossJoinDfSimilarity.show(10, truncate = false)
     // Now we have to match rows of df1 with rows of df2
+    val pairedIds = df1Mod.map(row => {
+      val df1Id = row.getAs[Double]("id_df1")
+
+      println("value:")
+      crossJoinDfSimilarity.show(10, truncate = false)
+      val value = crossJoinDfSimilarity.where($"id_df1" === df1Id)
+      value.show(100, truncate = false)
+
+      val df2Id = crossJoinDfSimilarity.where($"id_df1" === df1Id)
+        .select(min("distance"))
+        .head().getAs[Double]("id_df2")
+
+      crossJoinDfSimilarity
+        .filter(not($"id_df1" === df1Id and $"id_df2" === df2Id))
+      (df1Id, df2Id)
+    })
+
+    val pairedIdsDf = pairedIds.toDF("id_df1", "id_df2")
+    pairedIdsDf.show(10, truncate = false)
 
     0.0
   }
