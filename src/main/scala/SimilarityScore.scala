@@ -7,7 +7,7 @@ import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 object SimilarityScore {
 
 
-  def getListOfFiles(dir: String):List[File] = {
+  def getListOfFiles(dir: String): List[File] = {
     val d = new File(dir)
     if (d.exists && d.isDirectory) {
       d.listFiles.filter(_.isFile).toList
@@ -59,7 +59,7 @@ object SimilarityScore {
 
 
   def rowWiseDistUDF = udf((row1: Row, row2: Row) => {
-    var sum:Double = 0
+    var sum: Double = 0
 
     // We will exclude id column at index 0
     for (i <- 1 to (row1.size - 1)) {
@@ -93,30 +93,45 @@ object SimilarityScore {
 
     val crossJoinDfSimilarity = crossJoinDf.withColumn("distance",
       rowWiseDistUDF(struct(df1Names: _*),
-      struct
-      (df2Names: _*)))
+        struct
+        (df2Names: _*)))
 
-    crossJoinDfSimilarity.show(10, truncate = false)
-    // Now we have to match rows of df1 with rows of df2
-    val pairedIds = df1Mod.map(row => {
-      val df1Id = row.getAs[Double]("id_df1")
+    var crossJoinDfSimilarityCopy = crossJoinDfSimilarity
 
-      println("value:")
-      crossJoinDfSimilarity.show(10, truncate = false)
-      val value = crossJoinDfSimilarity.where($"id_df1" === df1Id)
-      value.show(100, truncate = false)
+    while (!crossJoinDfSimilarityCopy.head(1).isEmpty) {
+      val df1Id = crossJoinDfSimilarityCopy.select(min("id_df1") as "id_df1").head()
+        .getAs[Double]("id_df1")
+      val minRow = crossJoinDfSimilarityCopy.where($"id_df1" === df1Id).orderBy(asc
+      ("distance"))
+        .head()
+      val df2Id = minRow.getAs[Double]("id_df2")
+      crossJoinDfSimilarityCopy = crossJoinDfSimilarityCopy.filter(not($"id_df1"
+        === df1Id))
+      println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + minRow
+        .getAs[Double]("distance"))
+    }
 
-      val df2Id = crossJoinDfSimilarity.where($"id_df1" === df1Id)
-        .select(min("distance"))
-        .head().getAs[Double]("id_df2")
-
-      crossJoinDfSimilarity
-        .filter(not($"id_df1" === df1Id and $"id_df2" === df2Id))
-      (df1Id, df2Id)
-    })
-
-    val pairedIdsDf = pairedIds.toDF("id_df1", "id_df2")
-    pairedIdsDf.show(10, truncate = false)
+    //    crossJoinDfSimilarity.show(10, truncate = false)
+    //    // Now we have to match rows of df1 with rows of df2
+    //    val pairedIds = df1Mod.map(row => {
+    //      val df1Id = row.getAs[Double]("id_df1")
+    //
+    //      println("value:")
+    //      crossJoinDfSimilarity.show(10, truncate = false)
+    //      val value = crossJoinDfSimilarity.where($"id_df1" === df1Id)
+    //      value.show(100, truncate = false)
+    //
+    //      val df2Id = crossJoinDfSimilarity.where($"id_df1" === df1Id)
+    //        .select(min("distance"))
+    //        .head().getAs[Double]("id_df2")
+    //
+    //      crossJoinDfSimilarity
+    //        .filter(not($"id_df1" === df1Id and $"id_df2" === df2Id))
+    //      (df1Id, df2Id)
+    //    })
+    //
+    //    val pairedIdsDf = pairedIds.toDF("id_df1", "id_df2")
+    //    pairedIdsDf.show(10, truncate = false)
 
     0.0
   }
@@ -139,7 +154,7 @@ object SimilarityScore {
       normalizeAgeColumnOfDf(df2, minAge, range))
   }
 
-  def normalizeAgeUDF = udf((age:Double, minAge: Double, range: Double) => {
+  def normalizeAgeUDF = udf((age: Double, minAge: Double, range: Double) => {
     (age - minAge) / range
   })
 
