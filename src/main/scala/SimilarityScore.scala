@@ -41,10 +41,10 @@ object SimilarityScore {
         .csv(files(1).toString)
 
 
-      val dist = computeAverageDistance(
+      val results = computeAverageDistance(
         addColumnNames(convertStringColumnsToDouble(df1)),
         addColumnNames(convertStringColumnsToDouble(df2)))
-      println("dist: " + dist)
+      println("dist: " + results)
     }
 
   }
@@ -71,7 +71,7 @@ object SimilarityScore {
     sum / (row1.size - 1)
   })
 
-  def computeAverageDistance(df1: DataFrame, df2: DataFrame): Double = {
+  def computeAverageDistance(df1: DataFrame, df2: DataFrame) = {
 
     import df1.sparkSession.implicits._
 
@@ -100,6 +100,13 @@ object SimilarityScore {
 
     var crossJoinDfSimilarityCopy = crossJoinDfSimilarity
 
+
+    var distanceSum:Double = 0
+    var numRows:Double = 0
+    var zeroDistRows: Double = 0
+    var maxDistance: Double = 0
+    var minDistance: Double = 1 // the distance cannot exceed 1
+
     while (!crossJoinDfSimilarityCopy.head(1).isEmpty) {
       val df1Id = crossJoinDfSimilarityCopy.select(min("id_df1") as "id_df1").head()
         .getAs[Double]("id_df1")
@@ -109,33 +116,24 @@ object SimilarityScore {
       val df2Id = minRow.getAs[Double]("id_df2")
       crossJoinDfSimilarityCopy = crossJoinDfSimilarityCopy.filter(not($"id_df1"
         === df1Id))
-      println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + minRow
-        .getAs[Double]("distance"))
+
+      val distance = minRow.getAs[Double]("distance")
+      println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + distance)
+
+      distanceSum += distance
+      numRows += 1
+
+      if (distance == 0) {
+        zeroDistRows += 0
+      }
+
+      maxDistance = Math.max(maxDistance, distance)
+      minDistance = Math.min(minDistance, distance)
     }
 
-    //    crossJoinDfSimilarity.show(10, truncate = false)
-    //    // Now we have to match rows of df1 with rows of df2
-    //    val pairedIds = df1Mod.map(row => {
-    //      val df1Id = row.getAs[Double]("id_df1")
-    //
-    //      println("value:")
-    //      crossJoinDfSimilarity.show(10, truncate = false)
-    //      val value = crossJoinDfSimilarity.where($"id_df1" === df1Id)
-    //      value.show(100, truncate = false)
-    //
-    //      val df2Id = crossJoinDfSimilarity.where($"id_df1" === df1Id)
-    //        .select(min("distance"))
-    //        .head().getAs[Double]("id_df2")
-    //
-    //      crossJoinDfSimilarity
-    //        .filter(not($"id_df1" === df1Id and $"id_df2" === df2Id))
-    //      (df1Id, df2Id)
-    //    })
-    //
-    //    val pairedIdsDf = pairedIds.toDF("id_df1", "id_df2")
-    //    pairedIdsDf.show(10, truncate = false)
-
-    0.0
+    val avgDistance = distanceSum / numRows
+    val zeroDistPercent = distanceSum / numRows
+    (avgDistance, minDistance, maxDistance, zeroDistPercent)
   }
 
   def addSuffixToColumnNames(df: DataFrame, suffix: String) = {
