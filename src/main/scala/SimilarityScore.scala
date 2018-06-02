@@ -133,6 +133,11 @@ object SimilarityScore {
 
     val avgDistance = distanceSum / numRows
     val zeroDistPercent = distanceSum / numRows
+
+    println("avgDistance: " + avgDistance)
+    println("minDistance: " + minDistance)
+    println("maxDistance: " + maxDistance)
+    println("zeroDistPercent: " + zeroDistPercent)
     (avgDistance, minDistance, maxDistance, zeroDistPercent)
   }
 
