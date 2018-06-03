@@ -3,7 +3,6 @@ import java.io.File
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-import org.apache.spark.storage.StorageLevel
 
 object SimilarityScore {
 
