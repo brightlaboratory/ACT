@@ -86,9 +86,6 @@ object SimilarityScore {
     df1Mod.take(1).foreach(row => println("ROW: " + row))
     df2Mod.take(1).foreach(row => println("ROW: " + row))
 
-    val df1Ids = df1Mod.select("id_df1").collect().map(row => row.getAs[Double]
-      ("id_df1")).toList
-
     var distanceSum: Double = 0
     var numRows: Double = 0
     var zeroDistRows: Double = 0
@@ -96,7 +93,16 @@ object SimilarityScore {
     var minDistance: Double = 1 // the distance cannot exceed 1
 
     val df2ModCopy = df2Mod
+//      .where($"id_df2" < 10)
     val df1ModCopy = df1Mod
+//      .where($"id_df1" < 10)
+    val df1Ids = df1ModCopy.select("id_df1").collect().map(row => row
+      .getAs[Double]
+      ("id_df1")).toList
+
+    println("df1ModCopy.count(): " + df1ModCopy.count())
+    println("df2ModCopy.count(): " + df2ModCopy.count())
+
     var df2Ids = List[Double]()
     df1Ids.foreach(df1Id => {
       val crossJoinDf = df1ModCopy.where($"id_df1" === df1Id)
@@ -127,7 +133,7 @@ object SimilarityScore {
 
     println("df2ModCopy.count(): " + df2ModCopy.count())
     val avgDistance = distanceSum / numRows
-    val zeroDistPercent = distanceSum / numRows
+    val zeroDistPercent = (distanceSum / numRows) * 100.0
 
     println("avgDistance: " + avgDistance)
     println("minDistance: " + minDistance)

@@ -5,7 +5,7 @@ import org.scalatest.{BeforeAndAfter, FlatSpec}
 
 class SimpleAppSpecs extends FlatSpec with BeforeAndAfter {
 
-  private val master = "local[8]"
+  private val master = "local[1]"
   private val appName = "example-spark"
 
   private var sc: SparkContext = _
