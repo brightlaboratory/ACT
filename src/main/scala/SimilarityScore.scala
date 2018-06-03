@@ -86,37 +86,29 @@ object SimilarityScore {
     df1Mod.take(1).foreach(row => println("ROW: " + row))
     df2Mod.take(1).foreach(row => println("ROW: " + row))
 
-    val crossJoinDf = df1Mod.crossJoin(df2Mod)
-    crossJoinDf.printSchema()
-    crossJoinDf.take(1).foreach(row => println("row: " + row))
+    val df1Ids = df1Mod.select("id_df1").collect().map(row => row.getAs[Double]
+      ("id_df1")).toList
 
-    val df1Names = crossJoinDf.columns.filter(_.endsWith("df1")).map(col)
-    val df2Names = crossJoinDf.columns.filter(_.endsWith("df2")).map(col)
-
-    val crossJoinDfSimilarity = crossJoinDf.withColumn("distance",
-      rowWiseDistUDF(struct(df1Names: _*),
-        struct
-        (df2Names: _*)))
-
-    var crossJoinDfSimilarityCopy = crossJoinDfSimilarity
-
-
-    var distanceSum:Double = 0
-    var numRows:Double = 0
+    var distanceSum: Double = 0
+    var numRows: Double = 0
     var zeroDistRows: Double = 0
     var maxDistance: Double = 0
     var minDistance: Double = 1 // the distance cannot exceed 1
 
-    while (!crossJoinDfSimilarityCopy.head(1).isEmpty) {
-      val df1Id = crossJoinDfSimilarityCopy.select(min("id_df1") as "id_df1").head()
-        .getAs[Double]("id_df1")
-      val minRow = crossJoinDfSimilarityCopy.where($"id_df1" === df1Id).orderBy(asc
-      ("distance"))
-        .head()
-      val df2Id = minRow.getAs[Double]("id_df2")
-      crossJoinDfSimilarityCopy = crossJoinDfSimilarityCopy.filter(not($"id_df1"
-        === df1Id))
+    var df2ModCopy = df2Mod
+    df1Ids.foreach(df1Id => {
+      val crossJoinDf = df1Mod.where($"id_df1" === df1Id).crossJoin(df2ModCopy)
+      val df1Names = crossJoinDf.columns.filter(_.endsWith("df1")).map(col)
+      val df2Names = crossJoinDf.columns.filter(_.endsWith("df2")).map(col)
 
+      val crossJoinDfSimilarity = crossJoinDf.withColumn("distance",
+        rowWiseDistUDF(struct(df1Names: _*), struct(df2Names: _*)))
+
+      val minRow = crossJoinDfSimilarity.orderBy(asc("distance")).head()
+//      println("minRow: " + minRow)
+      val df2Id = minRow.getAs[Double]("id_df2")
+      df2ModCopy = df2ModCopy.filter($"id_df2" =!= df2Id)
+      println("df2ModCopy.count(): " + df2ModCopy.count())
       val distance = minRow.getAs[Double]("distance")
       println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + distance)
 
@@ -129,8 +121,9 @@ object SimilarityScore {
 
       maxDistance = Math.max(maxDistance, distance)
       minDistance = Math.min(minDistance, distance)
-    }
+    })
 
+    println("df2ModCopy.count(): " + df2ModCopy.count())
     val avgDistance = distanceSum / numRows
     val zeroDistPercent = distanceSum / numRows
 
