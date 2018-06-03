@@ -96,8 +96,9 @@ object SimilarityScore {
     var minDistance: Double = 1 // the distance cannot exceed 1
 
     var df2ModCopy = df2Mod
+    var df1ModCopy = df1Mod
     df1Ids.foreach(df1Id => {
-      val crossJoinDf = df1Mod.where($"id_df1" === df1Id).crossJoin(df2ModCopy)
+      val crossJoinDf = df1ModCopy.where($"id_df1" === df1Id).crossJoin(df2ModCopy)
       val df1Names = crossJoinDf.columns.filter(_.endsWith("df1")).map(col)
       val df2Names = crossJoinDf.columns.filter(_.endsWith("df2")).map(col)
 
@@ -108,7 +109,8 @@ object SimilarityScore {
 //      println("minRow: " + minRow)
       val df2Id = minRow.getAs[Double]("id_df2")
       df2ModCopy = df2ModCopy.filter($"id_df2" =!= df2Id)
-      println("df2ModCopy.count(): " + df2ModCopy.count())
+      df1ModCopy = df1ModCopy.filter($"id_df1" =!= df1Id)
+//      println("df2ModCopy.count(): " + df2ModCopy.count())
       val distance = minRow.getAs[Double]("distance")
       println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + distance)
 
