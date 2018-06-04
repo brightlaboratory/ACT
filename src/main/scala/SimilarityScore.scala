@@ -42,6 +42,9 @@ object SimilarityScore {
         .csv(files(1).toString)
 
 
+      // TODO: Each configuration has 10 files. We want to call
+      // "computeAverageDistance" function on all 10C2 = 45 combinations of
+      // files and record the data.
       val results = computeAverageDistance(
         addColumnNames(convertStringColumnsToDouble(df1)),
         addColumnNames(convertStringColumnsToDouble(df2)))
