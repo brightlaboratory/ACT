@@ -3,6 +3,7 @@ import java.io.File
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.expressions.Window
 
 object SimilarityScore {
 
@@ -63,12 +64,25 @@ object SimilarityScore {
   def rowWiseDistUDF = udf((row1: Row, row2: Row) => {
     var sum: Double = 0
 
+//    println("row1.size: " + row1.size)
+
     // We will exclude id column at index 0
-    for (i <- 1 to (row1.size - 1)) {
+    for (i <- 1 until row1.size) {
       sum += Math.abs(row1.getDouble(i) - row2.getDouble(i))
     }
 
     sum / (row1.size - 1)
+  })
+
+  def rowSumUDF = udf((row1: Row) => {
+    var sum: Double = 0
+
+    // We will exclude id column at index 0
+    for (i <- 1 until row1.size) {
+      sum += row1.getDouble(i)
+    }
+
+    sum
   })
 
   def computeAverageDistance(df1: DataFrame, df2: DataFrame) = {
@@ -93,9 +107,9 @@ object SimilarityScore {
     var minDistance: Double = 1 // the distance cannot exceed 1
 
     val df2ModCopy = df2Mod
-//      .where($"id_df2" < 10)
+    //      .where($"id_df2" < 10)
     val df1ModCopy = df1Mod
-//      .where($"id_df1" < 10)
+    //      .where($"id_df1" < 10)
     val df1Ids = df1ModCopy.select("id_df1").collect().map(row => row
       .getAs[Double]
       ("id_df1")).toList
@@ -106,7 +120,7 @@ object SimilarityScore {
     var df2Ids = List[Double]()
     df1Ids.foreach(df1Id => {
       val crossJoinDf = df1ModCopy.where($"id_df1" === df1Id)
-        .crossJoin(df2ModCopy.where(!($"id_df2".isin(df2Ids : _*))))
+        .crossJoin(df2ModCopy.where(!($"id_df2".isin(df2Ids: _*))))
       val df1Names = crossJoinDf.columns.filter(_.endsWith("df1")).map(col)
       val df2Names = crossJoinDf.columns.filter(_.endsWith("df2")).map(col)
 
@@ -114,7 +128,7 @@ object SimilarityScore {
         rowWiseDistUDF(struct(df1Names: _*), struct(df2Names: _*)))
 
       val minRow = crossJoinDfSimilarity.orderBy(asc("distance")).head()
-//      println("minRow: " + minRow)
+      //      println("minRow: " + minRow)
       val df2Id = minRow.getAs[Double]("id_df2")
       df2Ids = df2Id :: df2Ids
       val distance = minRow.getAs[Double]("distance")
@@ -134,6 +148,71 @@ object SimilarityScore {
     println("df2ModCopy.count(): " + df2ModCopy.count())
     val avgDistance = distanceSum / numRows
     val zeroDistPercent = (distanceSum / numRows) * 100.0
+
+    println("avgDistance: " + avgDistance)
+    println("minDistance: " + minDistance)
+    println("maxDistance: " + maxDistance)
+    println("zeroDistPercent: " + zeroDistPercent)
+    (avgDistance, minDistance, maxDistance, zeroDistPercent)
+  }
+
+
+  def addSumColumn(df: DataFrame) = {
+    val dfNames = df.columns.map(col)
+    df.withColumn("sum", rowSumUDF(struct(dfNames: _*)))
+  }
+
+  def addRankColumn(df: DataFrame) = {
+    import df.sparkSession.implicits._
+    val idColumn = df.columns.filter(col => col.startsWith("id")).head
+    val w = Window.orderBy($"sum", $"$idColumn")
+    val rankColumn = "rank" + idColumn.substring(2)
+    df.withColumn(rankColumn, rank().over(w))
+  }
+
+  def computeAverageDistanceApproximate(df1: DataFrame, df2: DataFrame) = {
+
+    import df1.sparkSession.implicits._
+    println("df1.count(): " + df1.count())
+    println("df2.count(): " + df2.count())
+    val (df1Normalized, df2Normalized) = normalizeAgeColumn(df1, df2)
+
+    val df1Mod = addSuffixToColumnNames(df1Normalized, "df1")
+    val df2Mod = addSuffixToColumnNames(df2Normalized, "df2")
+
+    df1Mod.take(1).foreach(row => println("ROW: " + row))
+    df2Mod.take(1).foreach(row => println("ROW: " + row))
+
+    val df1Names = df1Mod.columns.filter(_.endsWith("df1")).map(col)
+    val df2Names = df2Mod.columns.filter(_.endsWith("df2")).map(col)
+
+    val df2ModCopy = addRankColumn(addSumColumn(df2Mod))
+    //      .where($"id_df2" < 10)
+    val df1ModCopy = addRankColumn(addSumColumn(df1Mod))
+    //      .where($"id_df1" < 10)
+
+
+//    df1ModCopy.show(100, truncate = false)
+//    df2ModCopy.show(100, truncate = false)
+
+    val joinedDf = df1ModCopy.join(df2ModCopy, $"rank_df1" === $"rank_df2",
+      "inner")
+      .withColumn("distance", rowWiseDistUDF(struct(df1Names: _*), struct(df2Names: _*)))
+
+    joinedDf.show(100, truncate = false)
+
+    val resultRow = joinedDf.select(avg("distance") as "average",
+      max("distance") as "maximum",
+      min("distance") as "minimum")
+      .head()
+
+    val avgDistance = resultRow.getAs[Double]("average")
+    val minDistance = resultRow.getAs[Double]("minimum")
+    val maxDistance = resultRow.getAs[Double]("maximum")
+
+    val zeroCount = joinedDf.where($"distance" <= 0.0).count()
+    val totalCount = joinedDf.count()
+    val zeroDistPercent = (zeroCount.toDouble * 100.0) / totalCount.toDouble
 
     println("avgDistance: " + avgDistance)
     println("minDistance: " + minDistance)
