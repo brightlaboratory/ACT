@@ -31,27 +31,54 @@ object SimilarityScore {
     files.foreach(file => println("FILE: " + file))
 
     if (files.size >= 2) {
+      /*
       println("files.head: " + files.head)
       println("files(1): " + files(1))
-      val df1 = spark.read
+      var df1 = spark.read
         .option("header", "false") //reading the headers
         .csv(files.head.toString)
 
-      val df2 = spark.read
+      var df2 = spark.read
         .option("header", "false")
         .csv(files(1).toString)
+      */
+      var j = 0
+      var k = 0
+      var count = 0
+      while (j < files.size - 1){
+        k = j + 1
+        while (k < files.size){
+          var df1 = spark.read
+              .option("header", "false")
+              .csv(files(j).toString)
+
+          var df2 = spark.read
+              .option("header", "false")
+              .csv(files(k).toString)
+
+          println(files(j))
+          println(files(k))
+          k += 1
+          count += 1
+          // Need to uncomment and run the below lines within while loop
+          //val results = computeAverageDistance(
+          //  addColumnNames(convertStringColumnsToDouble(df1)),
+          //  addColumnNames(convertStringColumnsToDouble(df2)))
+          //println("dist: " + results)
+        }
+        j += 1
+      }
+      println(count)
 
 
-      // TODO: Each configuration has 10 files. We want to call
+      // TODO: Each configuration has 10 files. We want to call : Done
       // "computeAverageDistance" function on all 10C2 = 45 combinations of
       // files and record the data.
-      val results = computeAverageDistance(
-        addColumnNames(convertStringColumnsToDouble(df1)),
-        addColumnNames(convertStringColumnsToDouble(df2)))
-      println("dist: " + results)
     }
 
   }
+
+
 
   def addColumnNames(df: DataFrame) = {
     val newNamesTrain = Seq("id", "Age", "Gender", "PT", "PTT", "Platelets", "DOA")
