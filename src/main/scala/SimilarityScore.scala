@@ -61,10 +61,10 @@ object SimilarityScore {
           k += 1
           count += 1
           // Need to uncomment and run the below lines within while loop
-          //val results = computeAverageDistance(
-          //  addColumnNames(convertStringColumnsToDouble(df1)),
-          //  addColumnNames(convertStringColumnsToDouble(df2)))
-          //println("dist: " + results)
+          var results = computeAverageDistance(
+            addColumnNames(convertStringColumnsToDouble(df1)),
+            addColumnNames(convertStringColumnsToDouble(df2)))
+          println("dist: " + results)
         }
         j += 1
       }
