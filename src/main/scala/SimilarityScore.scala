@@ -1,4 +1,4 @@
-import java.io.File
+import java.io.{BufferedWriter, File, FileWriter}
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.functions._
@@ -45,6 +45,8 @@ object SimilarityScore {
       var j = 0
       var k = 0
       var count = 0
+      val file = new File("ds_distance.csv")
+      val bw = new BufferedWriter(new FileWriter(file))
       while (j < files.size - 1){
         k = j + 1
         while (k < files.size){
@@ -64,11 +66,14 @@ object SimilarityScore {
           var results = computeAverageDistance(
             addColumnNames(convertStringColumnsToDouble(df1)),
             addColumnNames(convertStringColumnsToDouble(df2)))
+
+          bw.write("Distance between -- :"+ files(j).getName+ " "+ files(k).getName+ " : "+ results)
           println("dist: " + results)
         }
         j += 1
       }
       println(count)
+      bw.close()
 
 
       // TODO: Each configuration has 10 files. We want to call : Done
@@ -162,7 +167,7 @@ object SimilarityScore {
       val df2Id = minRow.getAs[Double]("id_df2")
       df2Ids = df2Id :: df2Ids
       val distance = minRow.getAs[Double]("distance")
-      println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + distance)
+      //println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + distance)
 
       distanceSum += distance
       numRows += 1
