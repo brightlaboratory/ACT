@@ -47,6 +47,7 @@ object SimilarityScore {
       var count = 0
       val file = new File("ds_distance.csv")
       val bw = new BufferedWriter(new FileWriter(file))
+      bw.write("File1" + "," + "File2"+"," + "avgDistance, minDistance, maxDistance, zeroDistPercent" + "\n")
       while (j < files.size - 1){
         k = j + 1
         while (k < files.size){
@@ -60,15 +61,16 @@ object SimilarityScore {
 
           println(files(j))
           println(files(k))
-          k += 1
-          count += 1
+
           // Need to uncomment and run the below lines within while loop
-          var results = computeAverageDistance(
+          var results = computeAverageDistanceApproximate(
             addColumnNames(convertStringColumnsToDouble(df1)),
             addColumnNames(convertStringColumnsToDouble(df2)))
 
-          bw.write("Distance between -- :"+ files(j).getName+ " "+ files(k).getName+ " : "+ results)
+          bw.write(files(j).getName+ ","+ files(k).getName+ ","+results._1+ ","+results._2+ ","+results._3+ ","+results._4 + "\n")
           println("dist: " + results)
+          k += 1
+          count += 1
         }
         j += 1
       }
