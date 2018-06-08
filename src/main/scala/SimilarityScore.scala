@@ -247,7 +247,7 @@ object SimilarityScore {
       val df2Id = minRow.getAs[Double]("id_df2")
       df2Ids = df2Id :: df2Ids
       val distance = minRow.getAs[Double]("distance")
-      println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + distance)
+//      println("df1Id: " + df1Id + " df2Id: " + df2Id + " distance: " + distance)
 
       distanceSum += distance
       numRows += 1
